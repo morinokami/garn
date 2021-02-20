@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 )
@@ -26,6 +27,13 @@ func Fetch(input string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+func removeScope(pkgName string) string {
+	if strings.HasPrefix(pkgName, "@") {
+		return strings.Split(pkgName, "/")[1]
+	}
+	return pkgName
 }
 
 // Archive
@@ -91,4 +99,14 @@ func MaxSatisfying(reference string, versions map[string]interface{}) (string, e
 		return maxSatisfying.String(), nil
 	}
 	return "", errors.New("none of versions satisfy the constraint")
+}
+
+func checkParentSatisfies(parentReference, childReference string) bool {
+	c, err := semver.NewConstraint(childReference)
+	if err != nil {
+		return false
+	}
+	// parentReference must be valid
+	v, _ := semver.NewVersion(parentReference)
+	return c.Check(v)
 }
