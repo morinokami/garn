@@ -8,11 +8,12 @@ func main() {
 	pkg := cmd.Package{Name: "my-awesome-package"}
 	dependencies := []cmd.Package{
 		{
-			Name:      "eslint",
-			Reference: "^7.6.0",
+			Name:      "react",
+			Reference: "^16.10.0",
 		},
 	}
 	available := make(map[string]string)
 
-	cmd.GetPackageDependencyTree(pkg, dependencies, available)
+	tree := cmd.GetPackageDependencyTree(pkg, dependencies, available)
+	cmd.LinkPackages(tree, "/home/shf0811/dev/garn")
 }

@@ -3,6 +3,10 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path"
+	"reflect"
 
 	"github.com/Masterminds/semver/v3"
 )
@@ -60,10 +64,6 @@ func GetPinnedReference(pkg Package) Package {
 	return Package{pkg.Name, v.String()}
 }
 
-type PackageJson struct {
-	Dependencies map[string]string `json:"dependencies"`
-}
-
 type Package struct {
 	Name      string
 	Reference string
@@ -77,7 +77,7 @@ func GetPackageDependencies(pkg Package) []Package {
 	}
 
 	var packageJson PackageJson
-	err = json.Unmarshal(pkgData, &packageJson)
+	err = ReadPackageJson(pkgData, &packageJson)
 	if err != nil {
 		panic(err)
 	}
@@ -122,4 +122,77 @@ func GetPackageDependencyTree(pkg Package, dependencies []Package, available map
 	}
 
 	return dependencyTree
+}
+
+func LinkPackages(node DependencyNode, cwd string) {
+	if len(node.Reference) > 0 {
+		packageBuffer := FetchPackage(Package{node.Name, node.Reference})
+		err := ExtractNpmArchiveTo(packageBuffer, cwd)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	for _, dependency := range node.Dependencies {
+		target := fmt.Sprintf("%s/node_modules/%s", cwd, dependency.Name)
+		binTarget := fmt.Sprintf("%s/node_modules/.bin", cwd)
+
+		// linking
+		LinkPackages(dependency, target)
+
+		// bin
+		var dependencyPackageJson PackageJson
+		err := ReadPackageJsonFromDisk(
+			fmt.Sprintf("%s/package.json", target),
+			&dependencyPackageJson,
+			)
+		if err != nil  {
+			panic(err)
+		}
+		
+		var bin map[string]interface{}
+		switch reflect.ValueOf(dependencyPackageJson.Bin).Kind() {
+		case reflect.String:
+			bin = map[string]interface{}{
+				dependency.Name: dependencyPackageJson.Bin.(string),
+			}
+		case reflect.Map:
+			bin = dependencyPackageJson.Bin.(map[string]interface{})
+		}
+
+		for binName := range bin {
+			binPath := bin[binName].(string)
+			//source := path.Join(target, binPath)
+			source := path.Join("..", dependency.Name, binPath)
+			dest := fmt.Sprintf("%s/%s", binTarget, binName)
+
+			err := os.MkdirAll(fmt.Sprintf("%s/node_modules/.bin", cwd), 0755)
+			if err != nil {
+				panic(err)
+			}
+			err = os.Symlink(source, dest)
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		// scripts
+		if dependencyPackageJson.Scripts != nil {
+			for _, scriptName := range []string{"preinstall", "install", "postinstall"} {
+				if script, ok := dependencyPackageJson.Scripts[scriptName]; ok {
+					fmt.Println("Running script:", script)
+					cmd := exec.Command(script)
+					cmd.Dir = target
+					cmd.Env = append(
+						os.Environ(),
+						fmt.Sprintf("PATH=%s/node_modules/.bin:%s", target, os.Getenv("PATH")),
+						)
+					err := cmd.Run()
+					if err != nil {
+						panic(err)
+					}
+				}
+			}
+		}
+	}
 }
