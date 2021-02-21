@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -45,7 +46,12 @@ func Fetch(input string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -136,7 +142,10 @@ func ExtractArchiveTo(data []byte, target string) error {
 				return err
 			}
 
-			f.Close()
+			err = f.Close()
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 	}
 }
