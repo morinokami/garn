@@ -1,19 +1,31 @@
 package main
 
 import (
+	"fmt"
 	"github.com/morinokami/garn/cmd"
 )
 
 func main() {
-	pkg := cmd.Package{Name: "my-awesome-package"}
-	dependencies := []cmd.Package{
-		{
-			Name:      "react",
-			Reference: "^16.10.0",
-		},
+	var packageJson cmd.PackageJson
+	err := cmd.ReadPackageJsonFromDisk("./package.json", &packageJson)
+	if err != nil {
+		panic(err)
+	}
+	pkg := cmd.Package{
+		Name: packageJson.Name,
+	}
+	var dependencies []cmd.Package
+	for name, reference := range packageJson.Dependencies {
+		dependencies = append(dependencies, cmd.Package{
+			Name:      name,
+			Reference: reference,
+		})
 	}
 	available := make(map[string]string)
 
+	fmt.Println("Resolving packages...")
 	tree := cmd.GetPackageDependencyTree(pkg, dependencies, available)
-	cmd.LinkPackages(tree, "/home/shf0811/dev/garn")
+
+	fmt.Println("Linking dependencies...")
+	cmd.LinkPackages(tree, ".")
 }
