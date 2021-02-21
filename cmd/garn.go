@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 )
@@ -97,6 +98,7 @@ type DependencyNode struct {
 }
 
 func GetPackageDependencyTree(pkg Package, dependencies []Package, available map[string]string) DependencyNode {
+	fmt.Println("Getting dependencies for", pkg.Name)
 	dependencyTree := DependencyNode{Name: pkg.Name, Reference: pkg.Reference}
 	for _, volatileDependency := range dependencies {
 		if availableReference, ok := available[volatileDependency.Name]; ok {
@@ -145,11 +147,11 @@ func LinkPackages(node DependencyNode, cwd string) {
 		err := ReadPackageJsonFromDisk(
 			fmt.Sprintf("%s/package.json", target),
 			&dependencyPackageJson,
-			)
-		if err != nil  {
+		)
+		if err != nil {
 			panic(err)
 		}
-		
+
 		var bin map[string]interface{}
 		switch reflect.ValueOf(dependencyPackageJson.Bin).Kind() {
 		case reflect.String:
@@ -162,7 +164,6 @@ func LinkPackages(node DependencyNode, cwd string) {
 
 		for binName := range bin {
 			binPath := bin[binName].(string)
-			//source := path.Join(target, binPath)
 			source := path.Join("..", dependency.Name, binPath)
 			dest := fmt.Sprintf("%s/%s", binTarget, binName)
 
@@ -176,21 +177,28 @@ func LinkPackages(node DependencyNode, cwd string) {
 			}
 		}
 
-		// scripts
+		// TODO: scripts (working now?)
 		if dependencyPackageJson.Scripts != nil {
 			for _, scriptName := range []string{"preinstall", "install", "postinstall"} {
 				if script, ok := dependencyPackageJson.Scripts[scriptName]; ok {
-					fmt.Println("Running script:", script)
-					cmd := exec.Command(script)
+					fmt.Printf(
+						"Running %s script for %s: %s\n",
+						scriptName,
+						dependencyPackageJson.Name,
+						script,
+					)
+					splitScript := strings.Split(script, " ")
+					cmd := exec.Command(splitScript[0], splitScript[1:]...)
 					cmd.Dir = target
 					cmd.Env = append(
 						os.Environ(),
 						fmt.Sprintf("PATH=%s/node_modules/.bin:%s", target, os.Getenv("PATH")),
-						)
-					err := cmd.Run()
+					)
+					out, err := cmd.Output()
 					if err != nil {
 						panic(err)
 					}
+					fmt.Println("Output:", string(out))
 				}
 			}
 		}

@@ -21,9 +21,10 @@ import (
 // package.json
 
 type PackageJson struct {
-	Name string `json:"name"`
-	Bin interface{} `json:"bin"`
-	Scripts map[string]string `json:"scripts"`
+	Name         string            `json:"name"`
+	Version      string            `json:"version"`
+	Bin          interface{}       `json:"bin"`
+	Scripts      map[string]string `json:"scripts"`
 	Dependencies map[string]string `json:"dependencies"`
 }
 
